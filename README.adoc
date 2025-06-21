@@ -1,0 +1,11 @@
+For hosting and downloading binaries for CI/CD.
+
+Would rather make Microsoft host it rather than the open-source projects.
+
+I have come across Github rate limiting me (the curl will timeout with 0 bytes downloaded), but perhaps this was because of DDOS of github as a service and not shadow rate limits.
+But they are not suppose to:
+
+[quote]
+____
+Each file included in a release must be under 2 GiB. There is no limit on the total size of a release, nor bandwidth usage.{wj}footnote:[https://docs.github.com/en/repositories/releasing-projects-on-github/about-releases]
+____
