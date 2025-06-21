@@ -1,0 +1,139 @@
+inputs:
+  inputs:
+    key:
+      description: Rename the downloaded binary to the following
+      required: true
+      type: string
+    name:
+      description: Rename the downloaded binary to the following
+      required: true
+      type: string
+    sha256:
+      description: Rename the downloaded binary to the following
+      required: true
+      type: string
+    timeout:
+      default: '120'
+      description: Rename the downloaded binary to the following
+      required: false
+      type: string
+name: Download binary
+runs:
+  steps:
+  - name: DEBUG - Workflow inputs
+    run: |-
+      # Quoting HEREDOC to prevent script injection
+      <<'EOF' cat - >&2
+      ${{ ToJSON(inputs) }}
+      EOF
+    shell: bash
+  - env:
+      BASE: ${{ github.workspace }}
+      KEY: ${{ inputs.key }}
+      SHA256: ${{ inputs.sha256 }}
+      TIMEOUT: ${{ inputs.timeout }}
+    name: Download ${{ inputs.key }}
+    run: |-
+      KEY="${KEY}"
+      SHA256="${HASH}"
+
+      BASE="${BASE:-.}"
+      TIMEOUT="${TIMEOUT:-120}"
+
+      list="$( <<EOF jq .
+      {
+        "nickel-1.12.0": {
+          "SHA256": "511b06bc96e30c9cc7ec1fd5467e63477b274cc905f26824c54773ae76666eb4",
+          "comment": "",
+          "is_direct_dl": true
+        },
+        "tetra": {
+          "SHA256": "7e3e5884120d3be1a6e25aed2ed680575f8f4f084aabe602a3239d726b4269df",
+          "comment": "",
+          "is_direct_dl": true
+        },
+        "zig-x86_64-linux-0.14.1.tar.xz": {
+          "SHA256": "24aeeec8af16c381934a6cd7d95c807a8cb2cf7df9fa40d359aa884195c4716c",
+          "comment": "Use the following step instead:\n\n- uses: mlugg/setup-zig@v2\n  with:\n    version: 0.14.1\n    mirror:  https://github.com/yueleshia/binaries/releases/download/nonsemantic/",
+          "is_direct_dl": false
+        }
+      }
+      EOF
+      )" || exit "$?"
+      if ! entry="$( printf %s\\n "${list}" | jq --raw-output --arg key "${KEY}" '
+        try .[$key] // error("\n\nERROR: \"" + $key + "\" is no longer hosted")
+      ' )"; then
+        printf %s\\n "The following are hosted:" >&2
+        printf %s "${list}" | jq --raw-output 'keys | map("  - " + .) | join("\n")' >&2
+        exit 1
+      fi
+
+      if [ false = "$( printf %s\\n "${entry}" | jq '.is_direct_dl' )" ]; then
+        printf %s\\n "You cannot use this action to download ${KEY}" >&2
+        printf %s\\n "${entry}" | jq --raw-output '.comment' >&2
+        exit 1
+      fi
+
+      [ -z "${FILE}" ] || { printf %s\\n "Pass KEY to download via environment variables." >&2; exit 1; }
+
+      mkdir -p "${BASE}/bin"
+      sha256="$( printf %s "${json}" | jq --raw-output --arg key "${KEY}" '.[$key].sha256' )" || exit "$?"
+
+      url="https://github.com/yueleshia/binaries/releases/download/nonsemantic/${KEY}"
+      out="${BASE}/bin/${KEY}"
+      printf %s\\n "Downloading ${url}" >&2
+      code="$( curl \
+        --connect-timeout "${TIMEOUT}" \
+        --location        "${url}" \
+        --output          "${out}" \
+        --write-out       "%{http_code}" \
+      )" || {
+        printf %s\\n "Failed to download: ${URL}" >&2
+        exit 1
+      }
+      if [ 200 != "${code}" ]; then
+        printf %s\\n "HTTP ERROR: ${code}" >&2
+        exit 1
+      fi
+
+      printf %s\\n "=== Checking SHA256 hash ===" >&2
+      printf %s\\n "Go to https://github.com/yueleshia/binaries/blob/main/binaries.json to see hashes these were uploaded with"
+
+      hash="$( sha256sum "${out}" )" || exit "$?"
+      if [ "${hash%% *}" != "${SHA256}" ]; then
+        printf %s\\n "Incorrect sha256. The file is not what you expected according to your hash" >&2
+        printf %s\\n "  expected: ${SHA256}" >&2
+        printf %s\\n "  received: ${hash%% *}" >&2
+        printf %s\\n "This was uploaded with" >&2
+        printf %s\\n "  uploaded: $( printf %s "${entry}" | jq --raw-output '.SHA256' )" >&2
+      fi
+
+      chmod +x "${out}" || exit "$?"
+    shell: bash
+  - env:
+      from: ${{ github.workspace }}/bin/${{ inputs.key }}
+      into: ${{ github.workspace }}/bin/${{ inputs.name }}
+    name: Renaming '${{ inputs.key }}' -> '${{ inputs.name }}'
+    run: |-
+      [ "${from}" != "${into}" ] && mv "${from}" "${into}"
+      tree -L 2 ${{ github.workspace }}""
+    shell: bash
+  - env:
+      bin_dir: ${{ github.workspace }}/bin
+    name: Adding 'bin' to $PATH
+    run: |-
+      while [ "" != "${p}" ]; do
+        x="${p%%:*}"
+        p="${p#"${x}"}"
+        p="${p#:}"
+
+        if [ "${x}" = "${bin_dir}" ]; then
+          printf %s\\n "Found ${bin_dir} in \$PATH, skipping modifying \$PATH" >&2
+          exit 0
+        fi
+      done
+
+      printf %s\\n "PATH=${PATH}:${bin_dir}" >>"${GITHUB_ENV}"
+      printf %s\\n "Added ${bin_dir} to \$PATH" "  ${PATH}" >&2
+    shell: bash
+  using: composite
