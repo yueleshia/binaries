@@ -21,20 +21,21 @@
       _ | {
         required     | Bool,
         description | String | optional,
-        type        | [| 'choice, 'string, 'boolean |],
+        type        | [| 'boolean, 'choice, 'number, 'string |],
         "default"   | Dyn | optional,
         options     | Array String | optional,
       }
     } -> Dyn
     = fun input_map => {
-      workflow_dispatch = { inputs = input_map },
-      workflow_call     = { inputs = input_map
+      composite         = input_map,
+      workflow_dispatch = input_map,
+      workflow_call     = input_map
         |> std.record.map_values (fun x =>
           if x.type == 'choice
           then x |> std.record.update "type" "string" |> std.record.remove "options"
           else x
         )
-      },
+      ,
       use   = input_map |> std.record.map (fun k v => "${{ inputs.%{k} }}"),
       embed = input_map |> std.record.map (fun k v => "inputs.%{k}"),
     }

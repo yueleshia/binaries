@@ -1,0 +1,32 @@
+[
+  {
+    "key":    "lychee-0.20.1.tar.gz",
+    "dl_url": "https://github.com/lycheeverse/lychee/releases/download/lychee-v0.20.1/lychee-x86_64-unknown-linux-musl.tar.gz",
+    "sha256": "ceeb8620a88ec4779878e061d59d5feb5b3714a9ba58321bdf245b699854ed3a"
+  },
+  {
+    "key":    "nickel-1.12.0",
+    "dl_url": "https://github.com/tweag/nickel/releases/download/1.12.0/nickel-x86_64-linux",
+    "sha256": "511b06bc96e30c9cc7ec1fd5467e63477b274cc905f26824c54773ae76666eb4"
+  },
+  {
+    "key":    "tetra",
+    "dl_url": "",
+    "sha256": "db67563922bb0d7ed2e438cd5ddb72c207625fb375a1dc91c058275af1a62ef4"
+  },
+  {
+    "key":    "zine-x86_64-linux-musl-0.11.1.tar.xz",
+    "dl_url": "https://github.com/kristoff-it/zine/releases/download/v0.11.1/x86_64-linux-musl.tar.xz",
+    "sha256": "2afe72a8dbeb19627c269ef980faee933c7ba134b6c8d9291fa758504fbf635a"
+  },
+  {
+    "key":    "zig-x86_64-linux-0.15.1.tar.xz",
+    "dl_url": "https://pkg.machengine.org/zig/zig-x86_64-linux-0.15.1.tar.xz",
+    "sha256": "c61c5da6edeea14ca51ecd5e4520c6f4189ef5250383db33d01848293bfafe05"
+  },
+  {
+    "key":    "~test",
+    "dl_url": "",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  }
+]

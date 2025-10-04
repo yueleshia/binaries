@@ -1,22 +1,31 @@
 inputs:
   key:
-    description: Rename the downloaded binary to the following
+    description: Name in releases to download
     required: true
     type: string
   name:
-    description: Rename the downloaded binary to the following
-    required: true
+    description: Name to rename the downloaded binary, not used if downloading an archive
+    required: false
+    type: string
+  owner_repo:
+    default: yueleshia/binaries
+    description: Owner/Repo
+    required: false
+    type: string
+  release_tag:
+    default: nonsemantic
+    description: Owner/Repo
+    required: false
     type: string
   sha256:
-    description: Rename the downloaded binary to the following
+    description: The SHA256 to validate the binary
     required: true
     type: string
   timeout:
-    default: '120'
-    description: Rename the downloaded binary to the following
+    default: 120
+    description: Max seconds for download
     required: false
-    type: string
-
+    type: number
 name: Download binary
 runs:
   steps:
@@ -28,118 +37,40 @@ runs:
       EOF
     shell: bash
   - env:
-      BASE: ${{ github.workspace }}
-      KEY: ${{ inputs.key }}
-      SHA256: ${{ inputs.sha256 }}
-      TIMEOUT: ${{ inputs.timeout }}
+      action_path: ${{ github.action_path }}
+      bin_dir: ${{ github.workspace }}/bin
+      key: ${{ inputs.key }}
+      name: ${{ inputs.name }}
+      owner_repo: ${{ inputs.owner_repo }}
+      release_tag: ${{ inputs.release_tag }}
+      sha256: ${{ inputs.sha256 }}
+      timeout: ${{ inputs.timeout }}
+      tmp_dir: ${{ runner.temp }}
     name: Download ${{ inputs.key }}
     run: |-
-      list="$( <<EOF jq .
-      {
-        "lychee-0.20.1": {
-          "SHA256": "6c51e0245a738b7c6e46e47ff4da48c6b367bba1b55776f249673338ca9698a4",
-          "comment": "",
-          "is_direct_dl": true,
-          "key": "lychee-0.20.1",
-          "name_default": "lychee-0.20.1",
-          "url": "https://github.com/lycheeverse/lychee/releases/download/lychee-v0.20.1/lychee-x86_64-unknown-linux-musl.tar.gz",
-          "version": "0.20.1"
-        },
-        "nickel-1.12.0": {
-          "SHA256": "511b06bc96e30c9cc7ec1fd5467e63477b274cc905f26824c54773ae76666eb4",
-          "comment": "",
-          "is_direct_dl": true,
-          "key": "nickel-1.12.0",
-          "name_default": "nickel-1.12.0",
-          "url": "https://github.com/tweag/nickel/releases/download/1.12.0/nickel-x86_64-linux",
-          "version": "1.12.0"
-        },
-        "tetra": {
-          "SHA256": "db67563922bb0d7ed2e438cd5ddb72c207625fb375a1dc91c058275af1a62ef4",
-          "comment": "",
-          "is_direct_dl": true,
-          "key": "tetra",
-          "name_default": "tetra",
-          "url": ""
-        },
-        "zig-x86_64-linux-0.15.1.tar.xz": {
-          "SHA256": "c61c5da6edeea14ca51ecd5e4520c6f4189ef5250383db33d01848293bfafe05",
-          "comment": "Use the following step instead:\n\n- uses: mlugg/setup-zig@v2\n  with:\n    version: 0.15.1\n    mirror:  https://github.com/yueleshia/binaries/releases/download/nonsemantic/",
-          "is_direct_dl": false,
-          "key": "zig-x86_64-linux-0.15.1.tar.xz",
-          "name_default": "zig-0.15.1",
-          "url": "https://pkg.machengine.org/zig/zig-x86_64-linux-0.15.1.tar.xz",
-          "version": "0.15.1"
-        },
-        "zine-0.11.1": {
-          "SHA256": "235e1a2d150ce34fe117665d5f05b41a373fc4082ad5f56b7baa908dc2608069",
-          "comment": "",
-          "is_direct_dl": true,
-          "key": "zine-0.11.1",
-          "name_default": "zine-0.11.1",
-          "url": "https://github.com/kristoff-it/zine/releases/download/v0.11.1/x86_64-linux-musl.tar.xz",
-          "version": "0.11.1"
-        }
+      mkdir -p "${bin_dir}"
+      dl() {
+        "${action_path}/download.sh" "${owner_repo}" "${release_tag}" "${key}" "${1}" "${timeout}" "${sha256}"
       }
-      EOF
-      )" || exit "$?"
-      if ! entry="$( printf %s\\n "${list}" | jq --raw-output --arg key "${KEY}" '
-        try .[$key] // error("\n\nERROR: \"" + $key + "\" is no longer hosted")
-      ' )"; then
-        printf %s\\n "The following are hosted:" >&2
-        printf %s "${list}" | jq --raw-output 'keys | map("  - " + .) | join("\n")' >&2
-        exit 1
-      fi
 
-      if [ false = "$( printf %s\\n "${entry}" | jq '.is_direct_dl' )" ]; then
-        printf %s\\n "You cannot use this action to download ${KEY}" >&2
-        printf %s\\n "${entry}" | jq --raw-output '.comment' >&2
-        exit 1
-      fi
+      case "${key}"
+      in *'.tar.gz'|*'.tar.gzip'|*'.tar.xz')
+        dl "${tmp_dir}/${key}" || exit "$?"
+        printf %s\\n "Decompressing '${tmp_dir}/${key}' -> '${bin}/'" >&2
+        tar -xvf "${tmp_dir}/${key}" -C "${bin_dir}/" || exit "$?"
+        if [ "${name}" != "" ] && [ "${key}" != "${name}" ]; then
+          printf %s\\n "Skipping rename because we extracted with tar" >&2
+        fi
+      ;; *)
+        dl "${bin_dir}/${key}" || exit "$?"
+        chmod +x "${bin_dir}/${key}" || exit "$?"
+        if [ "${name}" != "" ] && [ "${key}" != "${name}" ]; then
+          printf %s\\n "Renaming ${key} -> ${name}" >&2
+          mv "${bin_dir}/${key}" "${bin_dir}/${name}" || exit "$?"
+        fi
+      esac
 
-      [ -z "${FILE}" ] || { printf %s\\n "Pass KEY to download via environment variables." >&2; exit 1; }
-
-      mkdir -p "${BASE}/bin"
-      sha256="$( printf %s "${json}" | jq --raw-output --arg key "${KEY}" '.[$key].sha256' )" || exit "$?"
-
-      url="https://github.com/yueleshia/binaries/releases/download/nonsemantic/${KEY}"
-      out="${BASE}/bin/${KEY}"
-      printf %s\\n "Downloading ${url}" >&2
-      code="$( curl \
-        --connect-timeout "${TIMEOUT}" \
-        --location        "${url}" \
-        --output          "${out}" \
-        --write-out       "%{http_code}" \
-      )" || {
-        printf %s\\n "Failed to download: ${URL}" >&2
-        exit 1
-      }
-      if [ 200 != "${code}" ]; then
-        printf %s\\n "HTTP ERROR: ${code}" >&2
-        exit 1
-      fi
-
-      printf %s\\n "=== Checking SHA256 hash ===" >&2
-      printf %s\\n "Go to https://github.com/yueleshia/binaries/blob/main/binaries.json to see hashes these were uploaded with"
-
-      hash="$( sha256sum "${out}" )" || exit "$?"
-      if [ "${hash%% *}" != "${SHA256}" ]; then
-        printf %s\\n "Incorrect sha256. The file is not what you expected according to your hash" >&2
-        printf %s\\n "  expected: ${SHA256}" >&2
-        printf %s\\n "  received: ${hash%% *}" >&2
-        printf %s\\n "This was uploaded with" >&2
-        printf %s\\n "  uploaded: $( printf %s "${entry}" | jq --raw-output '.SHA256' )" >&2
-      fi
-
-      chmod +x "${out}" || exit "$?"
-    shell: bash
-  - env:
-      from: ${{ github.workspace }}/bin/${{ inputs.key }}
-      into: ${{ github.workspace }}/bin/${{ inputs.name }}
-    name: Renaming '${{ inputs.key }}' -> '${{ inputs.name }}'
-    run: |-
-      [ "${from}" != "${into}" ] && mv "${from}" "${into}"
-      tree -L 2 ${{ github.workspace }}""
+      tree -L 2 "${bin_dir}"
     shell: bash
   - env:
       bin_dir: ${{ github.workspace }}/bin
